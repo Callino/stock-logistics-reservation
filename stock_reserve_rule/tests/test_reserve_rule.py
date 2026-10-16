@@ -1,5 +1,6 @@
 # Copyright 2019 Camptocamp (https://www.camptocamp.com)
-# Copyright 2019-2021 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
+# Copyright 2019 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
+# Copyright 2025 Akretion
 
 from odoo import exceptions, fields
 
@@ -806,3 +807,119 @@ class TestReserveRule(ReserveRuleCommon):
             [{"location_id": self.loc_zone1_bin1.id, "quantity": 100.0}],
         )
         self.assertEqual(move.state, "partially_available")
+
+    def test_rule_packaging_do_not_sum_smaller_pack(self):
+        """Reserve only in case 1 quant matches existing packaging qty"""
+        self._setup_packagings(
+            self.product1,
+            [
+                ("Transport Box", 100, self.transport_box),
+            ],
+        )
+        # Put in stock 2 packs of 50pces
+        for cnt in range(2):
+            pack = self.env["stock.quant.package"].create({"name": f"PACK000{cnt}"})
+            self._update_qty_in_location(
+                self.loc_zone1_bin1,
+                self.product1,
+                50,
+                package=pack,
+            )
+
+        picking = self._create_picking(self.wh, [(self.product1, 200)])
+        move = picking.move_ids
+        self._create_rule(
+            {},
+            [
+                {
+                    "location_id": self.loc_zone1.id,
+                    "sequence": 1,
+                    "removal_strategy": "packaging",
+                },
+            ],
+        )
+        picking.action_assign()
+        self.assertEqual(move.state, "confirmed")
+
+    def test_rule_packaging_do_not_sum_different_owner(self):
+        """
+        Reserve only in case 1 quant matches existing packaging qty (consider owner)
+        """
+        self._setup_packagings(
+            self.product1,
+            [
+                ("Transport Box", 100, self.transport_box),
+            ],
+        )
+        # Put in stock 2 packs of 50pces
+        for cnt in range(2):
+            owner = self.env["res.partner"].create({"name": f"Parner {cnt}"})
+            self._update_qty_in_location(
+                self.loc_zone1_bin1,
+                self.product1,
+                50,
+                owner=owner,
+            )
+
+        picking = self._create_picking(self.wh, [(self.product1, 200)])
+        move = picking.move_ids
+        self._create_rule(
+            {},
+            [
+                {
+                    "location_id": self.loc_zone1.id,
+                    "sequence": 1,
+                    "removal_strategy": "packaging",
+                },
+            ],
+        )
+        picking.action_assign()
+        self.assertEqual(move.state, "confirmed")
+
+    def test_rule_packaging_do_not_sum_different_lots(self):
+        """
+        Reserve only in case 1 quant matches existing packaging qty (consider lot)
+        """
+        self.product1.tracking = "lot"
+        self._setup_packagings(
+            self.product1,
+            [
+                ("Transport Box", 100, self.transport_box),
+            ],
+        )
+        # Put in stock 2 packs of 50pces
+        lot = self.env["stock.lot"].create(
+            {"name": "Lot 1", "product_id": self.product1.id}
+        )
+        self._update_qty_in_location(
+            self.loc_zone1_bin1,
+            self.product1,
+            50,
+            lot=lot,
+        )
+        lot2 = self.env["stock.lot"].create(
+            {"name": "Lot 2", "product_id": self.product1.id}
+        )
+        self._update_qty_in_location(
+            self.loc_zone1_bin1,
+            self.product1,
+            100,
+            lot=lot2,
+        )
+
+        picking = self._create_picking(self.wh, [(self.product1, 200)])
+        move = picking.move_ids
+        self._create_rule(
+            {},
+            [
+                {
+                    "location_id": self.loc_zone1.id,
+                    "sequence": 1,
+                    "removal_strategy": "packaging",
+                },
+            ],
+        )
+        picking.action_assign()
+        self.assertEqual(move.state, "partially_available")
+        self.assertEqual(move.move_line_ids.lot_id, lot2)
+        self.assertEqual(move.quantity, 100.0)

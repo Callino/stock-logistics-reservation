@@ -1,5 +1,6 @@
 # Copyright 2019 Camptocamp SA
 # Copyright 2019 Jacques-Etienne Baudoux (BCIM) <je@bcim.be>
+# Copyright 2025 Akretion
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 from odoo import models
 from odoo.tools.float_utils import float_compare
@@ -102,7 +103,9 @@ class StockMove(models.Model):
                         next_quant = strategy.send(still_need)
                         if not next_quant:
                             continue
-                        location, location_quantity, to_take = next_quant
+                        to_take, location, lot, pack, owner, strict_reservation = (
+                            next_quant
+                        )
                         taken_in_loc = super(
                             StockMove, self.with_context(**exclusion_ctx)
                         )._update_reserved_quantity(
@@ -110,10 +113,10 @@ class StockMove(models.Model):
                             # from this bin
                             to_take,
                             location_id=location,
-                            lot_id=lot_id,
-                            package_id=package_id,
-                            owner_id=owner_id,
-                            strict=strict,
+                            lot_id=lot,
+                            package_id=pack,
+                            owner_id=owner,
+                            strict=strict_reservation,
                         )
                         still_need -= taken_in_loc
                         # We should break between quants if original needs is fulfilled
