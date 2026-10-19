@@ -80,6 +80,15 @@ class StockMove(models.Model):
                 rule_quants = removal_rule._filter_quants(self, quants)
                 if not rule_quants:
                     continue
+                excluded_quants = quants - rule_quants
+                exclusion_ctx = {}
+                if excluded_quants:
+                    # ensure excluded quants are taken into account by removing
+                    #  quant_cache
+                    exclusion_ctx = {
+                        "exclude_quant_ids": excluded_quants.ids,
+                        "quants_cache": None,
+                    }
 
                 # Apply the advanced removal strategy, if any. Even within the
                 # application of the removal strategy, the original company's
@@ -94,7 +103,9 @@ class StockMove(models.Model):
                         if not next_quant:
                             continue
                         location, location_quantity, to_take = next_quant
-                        taken_in_loc = super()._update_reserved_quantity(
+                        taken_in_loc = super(
+                            StockMove, self.with_context(**exclusion_ctx)
+                        )._update_reserved_quantity(
                             # in this strategy, we take as much as we can
                             # from this bin
                             to_take,
