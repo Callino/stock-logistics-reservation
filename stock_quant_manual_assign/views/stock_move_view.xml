@@ -9,7 +9,7 @@
                 <button
                     name="%(assign_manual_quants_action)d"
                     type="action"
-                    icon="fa-tags"
+                    icon="sell"
                     title="Manual Quants"
                     options='{"warn": true}'
                     invisible="picking_code == 'incoming' or state not in ('confirmed','assigned','partially_available')"
